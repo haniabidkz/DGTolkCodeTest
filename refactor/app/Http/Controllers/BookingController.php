@@ -80,9 +80,10 @@ class BookingController extends Controller
      */
     public function update($id, Request $request)
     {
-        $data = $request->all();
+        $data = $request->except(['_token', 'submit']);
         $cuser = $request->__authenticatedUser;
-        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
+
+        $response = $this->repository->updateJob($id, $data, $cuser);
 
         return response($response);
     }
@@ -107,7 +108,9 @@ class BookingController extends Controller
      */
     public function getHistory(Request $request)
     {
-        if($user_id = $request->get('user_id')) {
+        $user_id = $request->get('user_id');
+
+        if ($user_id) {
 
             $response = $this->repository->getUsersJobsHistory($user_id, $request);
             return response($response);
@@ -125,17 +128,18 @@ class BookingController extends Controller
         $data = $request->all();
         $user = $request->__authenticatedUser;
 
-        $response = $this->repository->acceptJob($data, $user);
+        $response = $this->repository->acceptJob($data['job_id'], $user);
 
         return response($response);
     }
 
     public function acceptJobWithId(Request $request)
     {
-        $data = $request->get('job_id');
+        $job_id = $request->get('job_id');
         $user = $request->__authenticatedUser;
 
-        $response = $this->repository->acceptJobWithId($data, $user);
+        $response = $this->repository->acceptJob($job_id, $user);
+
 
         return response($response);
     }
@@ -196,59 +200,28 @@ class BookingController extends Controller
     {
         $data = $request->all();
 
-        if (isset($data['distance']) && $data['distance'] != "") {
-            $distance = $data['distance'];
-        } else {
-            $distance = "";
-        }
-        if (isset($data['time']) && $data['time'] != "") {
-            $time = $data['time'];
-        } else {
-            $time = "";
-        }
-        if (isset($data['jobid']) && $data['jobid'] != "") {
-            $jobid = $data['jobid'];
-        }
+        $distance = isset($data['distance']) && $data['distance'] != "" ? $data['distance'] : "";
+        $time = isset($data['time']) && $data['time'] != "" ? $data['time'] : "";
+        $jobid = isset($data['jobid']) && $data['jobid'] != "" ? $data['jobid'] : "";
+        $session = isset($data['session_time']) && $data['session_time'] != "" ? $data['session_time'] : "";
 
-        if (isset($data['session_time']) && $data['session_time'] != "") {
-            $session = $data['session_time'];
-        } else {
-            $session = "";
-        }
+        $flagged = $data['flagged'] === 'true' ? 'yes' : 'no';
+        $manuallyHandled = $data['manually_handled'] === 'true' ? 'yes' : 'no';
+        $byAdmin = $data['by_admin'] === 'true' ? 'yes' : 'no';
+        $adminComment = isset($data['admincomment']) && $data['admincomment'] != "" ? $data['admincomment'] : "";
 
-        if ($data['flagged'] == 'true') {
-            if($data['admincomment'] == '') return "Please, add comment";
-            $flagged = 'yes';
-        } else {
-            $flagged = 'no';
-        }
-        
-        if ($data['manually_handled'] == 'true') {
-            $manually_handled = 'yes';
-        } else {
-            $manually_handled = 'no';
-        }
-
-        if ($data['by_admin'] == 'true') {
-            $by_admin = 'yes';
-        } else {
-            $by_admin = 'no';
-        }
-
-        if (isset($data['admincomment']) && $data['admincomment'] != "") {
-            $admincomment = $data['admincomment'];
-        } else {
-            $admincomment = "";
-        }
         if ($time || $distance) {
-
-            $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
+            $affectedRows = Distance::where('job_id', $jobid)->update(['distance' => $distance, 'time' => $time]);
         }
 
-        if ($admincomment || $session || $flagged || $manually_handled || $by_admin) {
-
-            $affectedRows1 = Job::where('id', '=', $jobid)->update(array('admin_comments' => $admincomment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
-
+        if ($adminComment || $session || $flagged || $manuallyHandled || $byAdmin) {
+            $affectedRows1 = Job::where('id', $jobid)->update([
+                'admin_comments' => $adminComment,
+                'flagged' => $flagged,
+                'session_time' => $session,
+                'manually_handled' => $manuallyHandled,
+                'by_admin' => $byAdmin,
+            ]);
         }
 
         return response('Record updated!');
